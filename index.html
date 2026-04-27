@@ -189,7 +189,7 @@
         let nextDx = 0, nextDy = 0;
         let score = 0;
         let hi = localStorage.getItem('snakeHi') || 0;
-        let speed = 120;
+        let speed = 150; 
         let lastTime = 0;
         let gameOver = false;
 
@@ -239,7 +239,10 @@
                 score += 1;
                 scoreEl.textContent = score;
                 spawnFood();
-                if (speed > 60) speed -= 1;
+                
+                if (score > 2) {
+                    if (speed > 50) speed -= 5;
+                }
             } else {
                 snake.pop();
             }
@@ -277,7 +280,7 @@
         function resetGame() {
             snake = [{x: 10, y: 10}];
             dx = 0; dy = 0; nextDx = 0; nextDy = 0;
-            score = 0; speed = 120;
+            score = 0; speed = 150;
             scoreEl.textContent = 0;
             gameOver = false;
             overlay.classList.remove('show');
