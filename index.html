@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Snake Game</title>
+    <style>
+        body {
+            background: #222;
+            color: #000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            font-family: 'Courier New', Courier, monospace;
+            overflow: hidden;
+            touch-action: manipulation;
+        }
+        #splash-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #94af13;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            transition: opacity 0.5s ease;
+        }
+        .game-title {
+            font-size: 2.5rem;
+            font-weight: bold;
+            letter-spacing: 2px;
+            border: 4px solid #000;
+            padding: 10px 20px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .loading-bar-container {
+            width: 200px;
+            height: 20px;
+            border: 3px solid #000;
+            padding: 2px;
+        }
+        .loading-bar-fill {
+            height: 100%;
+            background: #000;
+            width: 0%;
+            animation: load 3s linear forwards;
+        }
+        @keyframes load { to { width: 100%; } }
+        #game-wrapper {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+        }
+        .game-container {
+            position: relative;
+            background: #94af13;
+            padding: 10px;
+            border: 10px solid #555;
+            border-radius: 10px;
+            box-shadow: inset 0 0 50px rgba(0,0,0,0.2);
+        }
+        canvas {
+            background-color: #94af13;
+            display: block;
+            image-rendering: pixelated;
+        }
+        .ui {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px;
+            font-weight: bold;
+            border-bottom: 2px solid #000;
+            margin-bottom: 5px;
+        }
+        #overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #94af13;
+            border: 3px solid #000;
+            padding: 20px;
+            text-align: center;
+            display: none;
+            z-index: 10;
+        }
+        #overlay.show { display: block; }
+        .flash {
+            animation: blinker 0.6s linear infinite;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+        @keyframes blinker { 50% { opacity: 0; } }
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-top: 20px;
+            width: 210px;
+        }
+        .btn {
+            background: #333;
+            color: white;
+            border: none;
+            padding: 20px;
+            border-radius: 50%;
+            font-size: 1.2rem;
+            font-weight: bold;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .btn:active { background: #555; }
+        .up { grid-column: 2; }
+        .left { grid-column: 1; }
+        .down { grid-column: 2; }
+        .right { grid-column: 3; }
+        .instructions {
+            margin-top: 15px;
+            font-size: 0.8rem;
+            color: #888;
+        }
+        button.reset-btn {
+            background: #000;
+            color: #94af13;
+            border: none;
+            padding: 10px 20px;
+            font-family: inherit;
+            font-weight: bold;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="splash-screen">
+        <div class="game-title">SNAKE GAME</div>
+        <div class="loading-bar-container">
+            <div class="loading-bar-fill"></div>
+        </div>
+        <p>LOADING...</p>
+    </div>
+
+    <div id="game-wrapper">
+        <div class="game-container">
+            <div class="ui">
+                <span>SCORE: <span id="score">0</span></span>
+                <span>HI: <span id="hi">0</span></span>
+            </div>
+            <canvas id="gameCanvas" width="300" height="300"></canvas>
+            <div id="overlay">
+                <div class="flash">GAME OVER</div>
+                <button class="reset-btn" onclick="resetGame()">RETRY</button>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button class="btn up" onpointerdown="handleInput('ArrowUp')">↑</button>
+            <button class="btn left" onpointerdown="handleInput('ArrowLeft')">←</button>
+            <button class="btn down" onpointerdown="handleInput('ArrowDown')">↓</button>
+            <button class="btn right" onpointerdown="handleInput('ArrowRight')">→</button>
+        </div>
+        <div class="instructions">TAP BUTTONS OR USE ARROWS</div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreEl = document.getElementById('score');
+        const hiEl = document.getElementById('hi');
+        const overlay = document.getElementById('overlay');
+        const splash = document.getElementById('splash-screen');
+        const gameWrapper = document.getElementById('game-wrapper');
+
+        const GRID = 15;
+        const COUNT = canvas.width / GRID;
+
+        let snake = [{x: 10, y: 10}];
+        let food = {x: 5, y: 5};
+        let dx = 0, dy = 0;
+        let nextDx = 0, nextDy = 0;
+        let score = 0;
+        let hi = localStorage.getItem('snakeHi') || 0;
+        let speed = 120;
+        let lastTime = 0;
+        let gameOver = false;
+
+        hiEl.textContent = hi;
+
+        setTimeout(() => {
+            splash.style.opacity = '0';
+            setTimeout(() => {
+                splash.style.display = 'none';
+                gameWrapper.style.display = 'flex';
+                spawnFood();
+                window.requestAnimationFrame(main);
+            }, 500);
+        }, 3000);
+
+        function main(time) {
+            if (gameOver) {
+                overlay.classList.add('show');
+                return;
+            }
+            window.requestAnimationFrame(main);
+            if (time - lastTime < speed) return;
+            lastTime = time;
+            update();
+            draw();
+        }
+
+        function update() {
+            dx = nextDx; dy = nextDy;
+            if (dx === 0 && dy === 0) return;
+
+            const head = {x: snake[0].x + dx, y: snake[0].y + dy};
+
+            if (head.x < 0 || head.x >= COUNT || head.y < 0 || head.y >= COUNT || 
+                snake.some(s => s.x === head.x && s.y === head.y)) {
+                if (score > hi) {
+                    hi = score;
+                    localStorage.setItem('snakeHi', hi);
+                    hiEl.textContent = hi;
+                }
+                gameOver = true;
+                return;
+            }
+
+            snake.unshift(head);
+            if (head.x === food.x && head.y === food.y) {
+                score += 1;
+                scoreEl.textContent = score;
+                spawnFood();
+                if (speed > 60) speed -= 1;
+            } else {
+                snake.pop();
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#000';
+            
+            const centerX = food.x * GRID + GRID/2;
+            const centerY = food.y * GRID + GRID/2;
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, (GRID/2) - 1, 0, Math.PI * 2);
+            ctx.fill();
+
+            snake.forEach(s => {
+                ctx.fillRect(s.x * GRID, s.y * GRID, GRID - 1, GRID - 1);
+            });
+        }
+
+        function spawnFood() {
+            food = {x: Math.floor(Math.random()*COUNT), y: Math.floor(Math.random()*COUNT)};
+            if (snake.some(s => s.x === food.x && s.y === food.y)) spawnFood();
+        }
+
+        function handleInput(key) {
+            switch(key) {
+                case 'ArrowUp': if(dy !== 1) { nextDx = 0; nextDy = -1; } break;
+                case 'ArrowDown': if(dy !== -1) { nextDx = 0; nextDy = 1; } break;
+                case 'ArrowLeft': if(dx !== 1) { nextDx = -1; nextDy = 0; } break;
+                case 'ArrowRight': if(dx !== -1) { nextDx = 1; nextDy = 0; } break;
+            }
+        }
+
+        function resetGame() {
+            snake = [{x: 10, y: 10}];
+            dx = 0; dy = 0; nextDx = 0; nextDy = 0;
+            score = 0; speed = 120;
+            scoreEl.textContent = 0;
+            gameOver = false;
+            overlay.classList.remove('show');
+            spawnFood();
+            window.requestAnimationFrame(main);
+        }
+
+        window.addEventListener('keydown', e => handleInput(e.key));
+    </script>
+</body>
+</html>
